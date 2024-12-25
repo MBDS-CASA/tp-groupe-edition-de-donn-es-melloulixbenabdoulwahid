@@ -1,0 +1,5 @@
+const APropos = () => {
+    return <div>Bienvenue sur la page À propos</div>;
+};
+
+export default APropos;
