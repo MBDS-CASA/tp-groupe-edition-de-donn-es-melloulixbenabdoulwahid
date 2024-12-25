@@ -1,2 +1,5 @@
-Ayoub Benabdoulwahid
-Mohamed Amine MELLOULI
+
+# Contributors
+
+- Ayoub Benabdoulwahid
+- Mohamed Amine MELLOULI
