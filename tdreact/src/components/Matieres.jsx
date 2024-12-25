@@ -80,6 +80,28 @@ function Matieres() {
         setEditingCourse(null);
     };
 
+    // Fonction pour télécharger les données en CSV
+    const exportToCSV = () => {
+        const csvData = [
+            ["Matière", "Nombre d'étudiants", "Moyenne des notes"],
+            ...coursesWithDetails.map((course) => [
+                course.name,
+                course.students,
+                course.average.toFixed(2),
+            ]),
+        ];
+
+        const csvContent = csvData.map((row) => row.join(",")).join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "matieres.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
         <div>
             <h1>Liste des matières</h1>
@@ -105,10 +127,18 @@ function Matieres() {
                 <Button
                     variant="contained"
                     color="primary"
-                    style={{ marginTop: "10px" }}
+                    style={{ marginTop: "10px", marginRight: "10px" }}
                     onClick={() => setIsDialogOpen(true)}
                 >
                     Ajouter une matière
+                </Button>
+                <Button
+                    variant="contained"
+                    color="secondary"
+                    style={{ marginTop: "10px" }}
+                    onClick={exportToCSV}
+                >
+                    Télécharger CSV
                 </Button>
             </div>
 

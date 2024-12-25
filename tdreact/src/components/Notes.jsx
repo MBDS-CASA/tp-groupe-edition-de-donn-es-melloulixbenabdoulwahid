@@ -62,10 +62,35 @@ function Notes() {
         setEditingId(null);
     };
 
+    // Fonction pour exporter les données en CSV
+    const exportToCSV = () => {
+        const csvData = [
+            ["ID", "Prénom", "Nom", "Cours", "Date", "Note"],
+            ...data.map((item) => [
+                item.student.id,
+                item.student.firstname,
+                item.student.lastname,
+                item.course,
+                item.date,
+                item.grade,
+            ]),
+        ];
+
+        const csvContent = csvData.map((row) => row.join(",")).join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "notes.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
         <div>
             <h1>Liste des notes</h1>
-            <h3>Pour supprimer une note simplement modifiez et laissez le champ vide</h3>
+            <h3>Pour supprimer une note, modifiez-la et laissez le champ vide</h3>
             <div
                 style={{
                     maxWidth: 800,
@@ -85,6 +110,14 @@ function Notes() {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
+                <Button
+                    variant="contained"
+                    color="secondary"
+                    style={{ marginTop: "10px" }}
+                    onClick={exportToCSV}
+                >
+                    Télécharger CSV
+                </Button>
             </div>
 
             <TableContainer component={Paper}>

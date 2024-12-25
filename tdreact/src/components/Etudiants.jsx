@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import '../App.css'
-
 import dataFromJson from "../assets/data.json"; // Importation des données JSON
 import {
     Table,
@@ -17,6 +16,7 @@ import {
     DialogContent,
     DialogTitle
 } from "@mui/material";
+import Papa from "papaparse"; // Bibliothèque pour manipuler les fichiers CSV
 
 function Etudiants() {
     const [data, setData] = useState(dataFromJson); // Utilisation des données JSON
@@ -31,10 +31,33 @@ function Etudiants() {
 
     // Fonction pour calculer la moyenne des notes pour chaque étudiant
     const getAverageGrades = (studentId) => {
-        const studentGrades = data.filter((item) => item.student.id === studentId).map((item) => parseFloat(item.grade));
+        const studentGrades = data
+            .filter((item) => item.student.id === studentId)
+            .map((item) => parseFloat(item.grade));
         if (studentGrades.length === 0) return 0;
         const total = studentGrades.reduce((sum, grade) => sum + grade, 0);
         return (total / studentGrades.length).toFixed(2);
+    };
+
+    // Fonction pour télécharger les données en CSV
+    const exportToCSV = () => {
+        const csvData = data.map((item) => ({
+            ID: item.student.id,
+            Prénom: item.student.firstname,
+            Nom: item.student.lastname,
+            Cours: item.course,
+            Moyenne: getAverageGrades(item.student.id),
+            Date: item.date,
+        }));
+        const csv = Papa.unparse(csvData);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "etudiants.csv");
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode.removeChild(link);
     };
 
     // Filtrer les étudiants en fonction de la recherche
@@ -48,7 +71,6 @@ function Etudiants() {
     // Ajouter ou modifier un étudiant
     const handleAddOrEdit = () => {
         if (editingId) {
-            // Modifier un étudiant existant
             const updatedData = data.map((item) =>
                 item.unique_id === editingId
                     ? {
@@ -64,17 +86,16 @@ function Etudiants() {
             );
             setData(updatedData);
         } else {
-            // Ajouter un nouvel étudiant
             const newStudent = {
                 unique_id: Date.now(),
                 course: formData.course,
                 student: {
                     firstname: formData.firstname,
                     lastname: formData.lastname,
-                    id: Date.now(), // Génération d'un ID unique
+                    id: Date.now(),
                 },
                 date: new Date().toISOString().split("T")[0],
-                grade: 0, // Par défaut
+                grade: 0,
             };
             setData([...data, newStudent]);
         }
@@ -82,7 +103,6 @@ function Etudiants() {
         setIsDialogOpen(false);
     };
 
-    // Préparer le formulaire pour modification
     const handleEdit = (student) => {
         setEditingId(student.unique_id);
         setFormData({
@@ -93,7 +113,6 @@ function Etudiants() {
         setIsDialogOpen(true);
     };
 
-    // Supprimer un étudiant
     const handleDelete = (id) => {
         setData(data.filter((item) => item.unique_id !== id));
     };
@@ -128,13 +147,22 @@ function Etudiants() {
                 <Button
                     variant="contained"
                     color="primary"
-                    style={{ marginTop: "10px" }}
+                    style={{ marginTop: "10px", marginRight: "10px" }}
                     onClick={() => setIsDialogOpen(true)}
                 >
                     Ajouter un étudiant
                 </Button>
+                <Button
+                    variant="contained"
+                    color="secondary"
+                    style={{ marginTop: "10px" }}
+                    onClick={exportToCSV}
+                >
+                    Télécharger CSV
+                </Button>
             </div>
 
+            {/* Tableau */}
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
@@ -143,7 +171,7 @@ function Etudiants() {
                             <TableCell className="table-head">Prénom</TableCell>
                             <TableCell className="table-head">Nom</TableCell>
                             <TableCell className="table-head">Cours</TableCell>
-                            <TableCell className="table-head">Moyenne Générale</TableCell>
+                            <TableCell className="table-head">Moyenne</TableCell>
                             <TableCell className="table-head">Actions</TableCell>
                         </TableRow>
                     </TableHead>
@@ -178,6 +206,7 @@ function Etudiants() {
                 </Table>
             </TableContainer>
 
+            {/* Dialog */}
             <Dialog open={isDialogOpen} onClose={() => setIsDialogOpen(false)}>
                 <DialogTitle>{editingId ? "Modifier un étudiant" : "Ajouter un étudiant"}</DialogTitle>
                 <DialogContent>
@@ -192,7 +221,7 @@ function Etudiants() {
                     <TextField
                         fullWidth
                         name="lastname"
-                        label="Nom de famille"
+                        label="Nom"
                         value={formData.lastname}
                         onChange={(e) => setFormData({ ...formData, lastname: e.target.value })}
                         margin="dense"
