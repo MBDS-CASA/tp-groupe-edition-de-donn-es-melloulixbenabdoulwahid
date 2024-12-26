@@ -8,7 +8,7 @@ import Header from './components/Header';
 import Footer from "./components/Footer.jsx";
 import Menu from "./components/Menu.jsx";
 import Formulaire from "./components/Formulaire.jsx";
-
+import DownloadCSV from "./components/DownloadCSV.jsx";
 
 function DisplayItem({ item }) {
     return (
@@ -33,6 +33,7 @@ function App() {
 
         <>
             <Menu />
+            <DownloadCSV data={data} />
             <div>
                 <Formulaire />
                 <Header name="React" />
