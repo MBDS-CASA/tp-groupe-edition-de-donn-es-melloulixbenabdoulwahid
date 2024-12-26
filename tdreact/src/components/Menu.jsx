@@ -15,7 +15,7 @@ const Menu = () => {
 
     const handleMenuItemClick = (item) => {
         setSelectedMenuItem(item);
-        alert(item.alertText);
+
     };
 
     return (

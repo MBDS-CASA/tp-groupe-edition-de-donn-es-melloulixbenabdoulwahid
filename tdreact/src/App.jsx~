@@ -34,11 +34,10 @@ function App() {
     return (
 
         <>
-        <BrowserRouter>
-            <AppRoute />
-        </BrowserRouter>
             <Menu />
-
+<BrowserRouter>
+    <AppRoute />
+</BrowserRouter>
             <div>
                 <Formulaire />
                 <Header name="React" />
