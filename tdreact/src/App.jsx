@@ -8,6 +8,8 @@ import Header from './components/Header';
 import Footer from "./components/Footer.jsx";
 import Menu from "./components/Menu.jsx";
 import Formulaire from "./components/Formulaire.jsx";
+import { BrowserRouter} from "react-router";
+import AppRoute from "./route";
 
 
 function DisplayItem({ item }) {
@@ -32,7 +34,12 @@ function App() {
     return (
 
         <>
-            <Menu />
+            <BrowserRouter>
+                <AppRoute/>
+                <Menu />
+            </BrowserRouter>
+
+
             <div>
                 <Formulaire />
                 <Header name="React" />

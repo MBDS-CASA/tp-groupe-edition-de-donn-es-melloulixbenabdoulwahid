@@ -173,7 +173,9 @@ nav li {
 }
 
 nav a {
-  color: #fff;
+  display: inline-block;
+  margin-right: 20px;
+  margin-left: 20px;
   text-decoration: none;
 }
 
