@@ -38,7 +38,7 @@ const Menu = () => {
             </nav>
 
             <div className="content">
-                {selectedMenuItem ? selectedMenuItem.component : <p>Sélectionnez un menu pour commencer.</p>}
+                {selectedMenuItem ? selectedMenuItem.component=null : <p>Sélectionnez un menu pour commencer.</p>}
             </div>
         </div>
     );
