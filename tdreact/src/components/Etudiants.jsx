@@ -1,6 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import '../App.css'
-import dataFromJson from "../assets/data.json"; // Importation des données JSON
 import {
     Table,
     TableBody,
@@ -16,39 +15,74 @@ import {
     DialogContent,
     DialogTitle
 } from "@mui/material";
-import Papa from "papaparse"; // Bibliothèque pour manipuler les fichiers CSV
+import Papa from "papaparse";
 
 function Etudiants() {
-    const [data, setData] = useState(dataFromJson); // Utilisation des données JSON
+    const [data, setData] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [formData, setFormData] = useState({
         firstname: "",
         lastname: "",
-        course: "",
+        courseId: "", // Store course ID for modifications
+        courseName: "" // Store course name for display
     });
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingId, setEditingId] = useState(null);
 
-    // Fonction pour calculer la moyenne des notes pour chaque étudiant
-    const getAverageGrades = (studentId) => {
-        const studentGrades = data
-            .filter((item) => item.student.id === studentId)
-            .map((item) => parseFloat(item.grade));
-        if (studentGrades.length === 0) return 0;
-        const total = studentGrades.reduce((sum, grade) => sum + grade, 0);
-        return (total / studentGrades.length).toFixed(2);
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        try {
+            const response = await fetch("http://localhost:8010/api/grades");
+            if (!response.ok) {
+                throw new Error("Network response was not ok");
+            }
+            const jsonData = await response.json();
+            setData(jsonData);
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        }
     };
 
-    // Fonction pour télécharger les données en CSV
+    // Group grades by student and calculate average grade
+    const studentData = data.reduce((acc, item) => {
+        const studentId = item.student._id;
+        if (!acc[studentId]) {
+            acc[studentId] = {
+                id: studentId,
+                firstname: item.student.firstName,
+                lastname: item.student.lastName,
+                grades: [],
+                courses: [] // Keep track of courses for each student
+            };
+        }
+        acc[studentId].grades.push(item.grade);
+        // Add course if not already present
+        if (!acc[studentId].courses.some(c => c.id === item.course._id)) {
+            acc[studentId].courses.push({ id: item.course._id, name: item.course.name });
+        }
+        return acc;
+    }, {});
+
+    const students = Object.values(studentData).map(student => ({
+        ...student,
+        average: student.grades.length > 0
+            ? (student.grades.reduce((sum, grade) => sum + grade, 0) / student.grades.length).toFixed(2)
+            : "N/A"
+    }));
+
+    // Function to download CSV data
     const exportToCSV = () => {
-        const csvData = data.map((item) => ({
-            ID: item.student.id,
-            Prénom: item.student.firstname,
-            Nom: item.student.lastname,
-            Cours: item.course,
-            Moyenne: getAverageGrades(item.student.id),
-            Date: item.date,
+        const csvData = students.map((student) => ({
+            ID: student.id,
+            Prénom: student.firstname,
+            Nom: student.lastname,
+            "Cours suivis": student.courses.map(course => course.name).join(", "), // All courses in one column
+            Moyenne: student.average
         }));
+
         const csv = Papa.unparse(csvData);
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
         const url = window.URL.createObjectURL(blob);
@@ -57,71 +91,73 @@ function Etudiants() {
         link.setAttribute("download", "etudiants.csv");
         document.body.appendChild(link);
         link.click();
-        link.parentNode.removeChild(link);
+        document.body.removeChild(link);
     };
 
-    // Filtrer les étudiants en fonction de la recherche
-    const filteredData = data.filter(
-        (item) =>
-            item.student.firstname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.student.lastname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.course.toLowerCase().includes(searchTerm.toLowerCase())
+    // Filter students based on search term
+    const filteredStudents = students.filter(
+        (student) =>
+            student.firstname.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            student.lastname.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // Ajouter ou modifier un étudiant
-    const handleAddOrEdit = () => {
+    // Add or edit a student
+    // Consider having separate API endpoints and frontend components to manage grades.
+    const handleAddOrEdit = async () => {
         if (editingId) {
-            const updatedData = data.map((item) =>
-                item.unique_id === editingId
-                    ? {
-                        ...item,
-                        course: formData.course,
-                        student: {
-                            ...item.student,
-                            firstname: formData.firstname,
-                            lastname: formData.lastname,
-                        },
-                    }
-                    : item
-            );
-            setData(updatedData);
+          // API call to modify student here if wanted
         } else {
-            const newStudent = {
-                unique_id: Date.now(),
-                course: formData.course,
-                student: {
-                    firstname: formData.firstname,
-                    lastname: formData.lastname,
-                    id: Date.now(),
-                },
-                date: new Date().toISOString().split("T")[0],
-                grade: 0,
-            };
-            setData([...data, newStudent]);
+            // Only modify student without grades if you want here.
         }
         resetForm();
         setIsDialogOpen(false);
     };
-
+  
+    // Open edit dialog
     const handleEdit = (student) => {
-        setEditingId(student.unique_id);
+        setEditingId(student.id);
+        // Assuming you only want to edit basic student info, not grades
         setFormData({
-            firstname: student.student.firstname,
-            lastname: student.student.lastname,
-            course: student.course,
+            firstname: student.firstname,
+            lastname: student.lastname,
+            courseId: "", // Not directly editing courses here
+            courseName: ""
         });
         setIsDialogOpen(true);
     };
 
-    const handleDelete = (id) => {
-        setData(data.filter((item) => item.unique_id !== id));
+    // Handle student deletion
+    const handleDelete = async (studentId) => {
+        const gradeIdsToDelete = data
+            .filter((item) => item.student._id === studentId)
+            .map((item) => item._id);
+      
+        try {
+            for (const gradeId of gradeIdsToDelete) {
+                const deleteRes = await fetch(`http://localhost:8010/api/grades/${gradeId}`, {
+                    method: "DELETE",
+                });
+
+                if (!deleteRes.ok) {
+                    throw new Error(`Failed to delete grade with ID: ${gradeId}`);
+                }
+            }
+
+            // Refetch data after successful deletion
+            fetchData();
+
+        } catch (error) {
+            console.error("Error deleting student/grades:", error);
+        }
     };
 
+    // Reset form
     const resetForm = () => {
-        setFormData({ firstname: "", lastname: "", course: "" });
+        setFormData({ firstname: "", lastname: "", courseId: "", courseName: "" });
         setEditingId(null);
     };
 
+    // Render component
     return (
         <div>
             <h1>Liste des étudiants</h1>
@@ -162,7 +198,7 @@ function Etudiants() {
                 </Button>
             </div>
 
-            {/* Tableau */}
+            {/* Table */}
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
@@ -176,25 +212,27 @@ function Etudiants() {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {filteredData.map((item) => (
-                            <TableRow key={item.unique_id}>
-                                <TableCell>{item.student.id}</TableCell>
-                                <TableCell>{item.student.firstname}</TableCell>
-                                <TableCell>{item.student.lastname}</TableCell>
-                                <TableCell>{item.course}</TableCell>
-                                <TableCell>{getAverageGrades(item.student.id)}</TableCell>
+                        {filteredStudents.map((student) => (
+                            <TableRow key={student.id}>
+                                <TableCell>{student.id}</TableCell>
+                                <TableCell>{student.firstname}</TableCell>
+                                <TableCell>{student.lastname}</TableCell>
+                                <TableCell>
+                                    {student.courses.map(course => course.name).join(", ")}
+                                </TableCell>
+                                <TableCell>{student.average}</TableCell>
                                 <TableCell>
                                     <Button
                                         variant="outlined"
                                         color="primary"
-                                        onClick={() => handleEdit(item)}
+                                        onClick={() => handleEdit(student)}
                                     >
                                         Modifier
                                     </Button>
                                     <Button
                                         variant="outlined"
                                         color="secondary"
-                                        onClick={() => handleDelete(item.unique_id)}
+                                        onClick={() => handleDelete(student.id)}
                                         style={{ marginLeft: "10px" }}
                                     >
                                         Supprimer
@@ -224,14 +262,6 @@ function Etudiants() {
                         label="Nom"
                         value={formData.lastname}
                         onChange={(e) => setFormData({ ...formData, lastname: e.target.value })}
-                        margin="dense"
-                    />
-                    <TextField
-                        fullWidth
-                        name="course"
-                        label="Cours"
-                        value={formData.course}
-                        onChange={(e) => setFormData({ ...formData, course: e.target.value })}
                         margin="dense"
                     />
                 </DialogContent>

@@ -1,5 +1,4 @@
-import React, { useState } from "react";
-import dataFromJson from "../assets/data.json"; // Importation des données JSON
+import React, { useState, useEffect } from "react";
 import {
     Table,
     TableBody,
@@ -17,24 +16,42 @@ import {
 } from "@mui/material";
 
 function Matieres() {
-    const [data, setData] = useState(dataFromJson); // Utilisation des données JSON
+    const [data, setData] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [formData, setFormData] = useState({
-        course: "",
+        course: "", // Now stores course ID
+        courseName: "" // For display purposes
     });
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState(null);
 
-    // Filtrer les matières en fonction de la recherche
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        try {
+            const response = await fetch("http://localhost:8010/api/grades");
+            if (!response.ok) {
+                throw new Error("Network response was not ok");
+            }
+            const jsonData = await response.json();
+            setData(jsonData);
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        }
+    };
+
+    // Filtrer les matières en fonction de la recherche (using course name)
     const filteredData = data.filter((item) =>
-        item.course.toLowerCase().includes(searchTerm.toLowerCase())
+        item.course.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // Regrouper les matières et calculer les moyennes et le nombre d'étudiants
+    // Regrouper les matières, calculer les moyennes et le nombre d'étudiants
     const courses = filteredData.reduce((acc, item) => {
-        const course = acc.find((c) => c.name === item.course);
+        const course = acc.find((c) => c.id === item.course._id); // Use course ID
         if (!course) {
-            acc.push({ name: item.course, grades: [item.grade], students: 1 });
+            acc.push({ id: item.course._id, name: item.course.name, grades: [item.grade], students: 1 });
         } else {
             course.grades.push(item.grade);
             course.students += 1;
@@ -50,33 +67,59 @@ function Matieres() {
     }));
 
     // Ajouter ou modifier une matière
-    const handleAddOrEditCourse = () => {
+    const handleAddOrEditCourse = async () => {
         if (editingCourse) {
-            const updatedData = data.map((item) =>
-                item.course === editingCourse ? { ...item, course: formData.course } : item
-            );
-            setData(updatedData);
+            // Handle modification: Only the name should be editable.
+            // You might want a separate API endpoint for changing just course names
+            // For now, updating only the locally stored `courses` object:
+
+            const courseIndex = courses.findIndex((c) => c.id === editingCourse)
+            if (courseIndex !== -1) {
+                courses[courseIndex].name = formData.courseName
+                // Refresh displayed courses
+                setData([...data]);
+            }
+
         } else {
-            const newData = {
-                unique_id: Date.now(),
-                course: formData.course,
-                student: { firstname: "", lastname: "", id: Date.now() },
-                date: new Date().toISOString().split("T")[0],
-                grade: 0,
-            };
-            setData([...data, newData]);
+            // No need for adding grades here as grades are added separately.
         }
         resetForm();
         setIsDialogOpen(false);
     };
 
-    // Supprimer une matière
-    const handleDeleteCourse = (courseName) => {
-        setData(data.filter((item) => item.course !== courseName));
+    // Supprimer une matière (and related grades)
+    const handleDeleteCourse = async (courseId) => {
+        // We must delete related grades as well, or orphan grades will exist in the db.
+        const gradeIdsToDelete = data
+            .filter((grade) => grade.course._id === courseId)
+            .map((grade) => grade._id);
+
+        try {
+            // Make separate API calls to delete grades using their IDs.
+            // Best way is to have an API call for multiple deletion for performance, like so:
+            // /api/grades/deleteMany using POST and sending an array of IDs.
+
+            for (const gradeId of gradeIdsToDelete) {
+                const deleteGradeRes = await fetch(`http://localhost:8010/api/grades/${gradeId}`, {
+                    method: "DELETE"
+                });
+
+                if (!deleteGradeRes.ok) {
+                    console.error(`Failed to delete grade with ID: ${gradeId}`);
+                    // Optionally stop the entire process on one error. Or handle somehow else.
+                }
+            }
+
+            // Now fetch data again, or remove the affected items manually (less safe)
+            fetchData();
+
+        } catch (err) {
+            console.error("Error during course deletion: ", err)
+        }
     };
 
     const resetForm = () => {
-        setFormData({ course: "" });
+        setFormData({ course: "", courseName: "" });
         setEditingCourse(null);
     };
 
@@ -163,8 +206,8 @@ function Matieres() {
                                         variant="outlined"
                                         color="primary"
                                         onClick={() => {
-                                            setEditingCourse(course.name);
-                                            setFormData({ course: course.name });
+                                            setEditingCourse(course.id);
+                                            setFormData({ course: course.id, courseName: course.name });
                                             setIsDialogOpen(true);
                                         }}
                                     >
@@ -173,7 +216,7 @@ function Matieres() {
                                     <Button
                                         variant="outlined"
                                         color="secondary"
-                                        onClick={() => handleDeleteCourse(course.name)}
+                                        onClick={() => handleDeleteCourse(course.id)}
                                         style={{ marginLeft: "10px" }}
                                     >
                                         Supprimer
@@ -192,10 +235,10 @@ function Matieres() {
                 <DialogContent>
                     <TextField
                         fullWidth
-                        name="course"
+                        name="courseName"
                         label="Matière"
-                        value={formData.course}
-                        onChange={(e) => setFormData({ ...formData, course: e.target.value })}
+                        value={formData.courseName}
+                        onChange={(e) => setFormData({ ...formData, courseName: e.target.value })}
                         margin="dense"
                     />
                 </DialogContent>

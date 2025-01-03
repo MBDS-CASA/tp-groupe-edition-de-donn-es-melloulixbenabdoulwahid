@@ -1,5 +1,4 @@
-import React, { useState } from "react";
-import dataFromJson from "../assets/data.json"; // Importation des données JSON
+import React, { useState, useEffect } from "react";
 import {
     Table,
     TableBody,
@@ -17,7 +16,7 @@ import {
 } from "@mui/material";
 
 function Notes() {
-    const [data, setData] = useState(dataFromJson); // Utilisation des données JSON
+    const [data, setData] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [formData, setFormData] = useState({
         grade: "",
@@ -25,52 +24,115 @@ function Notes() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingId, setEditingId] = useState(null);
 
-    // Filtrer les notes en fonction de la recherche
-    const filteredData = data.filter(
-        (item) =>
-            item.student.firstname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.student.lastname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.course.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Fetch data from API on component mount
+    useEffect(() => {
+        fetchData();
+    }, []);
 
-    // Modifier une note existante
-    const handleEdit = () => {
-        const updatedData = data.map((item) =>
-            item.unique_id === editingId
-                ? {
-                    ...item,
-                    grade: formData.grade,
-                }
-                : item
-        );
-        setData(updatedData);
-        resetForm();
-        setIsDialogOpen(false);
+    const fetchData = async () => {
+        try {
+            const response = await fetch("http://localhost:8010/api/grades");
+            if (!response.ok) {
+                throw new Error("Network response was not ok");
+            }
+            const jsonData = await response.json();
+            setData(jsonData);
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        }
     };
 
-    // Préparer le formulaire pour modification
+    // Filter grades based on search term
+    const filteredData = data.filter(
+        (item) =>
+            item.student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.course.name.toLowerCase().includes(searchTerm.toLowerCase()) // Use item.course.name
+    );
+
+    // Edit an existing grade
+    const handleEdit = async () => {
+        // Check if the grade is empty and handle it as a delete operation
+        if (formData.grade === "") {
+            handleDelete(editingId); // Call the delete function
+            return;
+        }
+        try {
+            const response = await fetch(`http://localhost:8010/api/grades/${editingId}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ grade: parseFloat(formData.grade) }), // Send only the updated grade
+            });
+
+            if (!response.ok) {
+                throw new Error("Network response was not ok");
+            }
+
+            // Update local data after successful API call
+            const updatedData = data.map((item) =>
+                item._id === editingId
+                    ? {
+                        ...item,
+                        grade: parseFloat(formData.grade),
+                    }
+                    : item
+            );
+            setData(updatedData);
+            resetForm();
+            setIsDialogOpen(false);
+
+        } catch (error) {
+            console.error("Error updating grade:", error);
+        }
+    };
+
+    // Delete a grade
+    const handleDelete = async (gradeId) => {
+        try {
+            const response = await fetch(`http://localhost:8010/api/grades/${gradeId}`, {
+                method: "DELETE",
+            });
+
+            if (!response.ok) {
+                throw new Error("Network response was not ok");
+            }
+
+            // Remove the deleted grade from local data
+            setData(data.filter((item) => item._id !== gradeId));
+            resetForm();
+            setIsDialogOpen(false);
+
+        } catch (error) {
+            console.error("Error deleting grade:", error);
+        }
+    };
+
+    // Prepare form for editing
     const handleOpenEditDialog = (note) => {
-        setEditingId(note.unique_id);
+        setEditingId(note._id); // Use note._id from API
         setFormData({
-            grade: note.grade,
+            grade: note.grade.toString(), // Convert to string for input field
         });
         setIsDialogOpen(true);
     };
 
+    // Reset form
     const resetForm = () => {
         setFormData({ grade: "" });
         setEditingId(null);
     };
 
-    // Fonction pour exporter les données en CSV
+    // Export data to CSV
     const exportToCSV = () => {
         const csvData = [
             ["ID", "Prénom", "Nom", "Cours", "Date", "Note"],
             ...data.map((item) => [
-                item.student.id,
-                item.student.firstname,
-                item.student.lastname,
-                item.course,
+                item.student._id,
+                item.student.firstName,
+                item.student.lastName,
+                item.course.name,
                 item.date,
                 item.grade,
             ]),
@@ -135,11 +197,11 @@ function Notes() {
                     </TableHead>
                     <TableBody>
                         {filteredData.map((item) => (
-                            <TableRow key={item.unique_id}>
-                                <TableCell>{item.student.id}</TableCell>
-                                <TableCell>{item.student.firstname}</TableCell>
-                                <TableCell>{item.student.lastname}</TableCell>
-                                <TableCell>{item.course}</TableCell>
+                            <TableRow key={item._id}>
+                                <TableCell>{item.student._id}</TableCell>
+                                <TableCell>{item.student.firstName}</TableCell>
+                                <TableCell>{item.student.lastName}</TableCell>
+                                <TableCell>{item.course.name}</TableCell> {/* Use item.course.name */}
                                 <TableCell>{item.date}</TableCell>
                                 <TableCell>{item.grade}</TableCell>
                                 <TableCell>
@@ -174,7 +236,7 @@ function Notes() {
                         Annuler
                     </Button>
                     <Button onClick={handleEdit} color="primary">
-                        Modifier
+                        Enregistrer
                     </Button>
                 </DialogActions>
             </Dialog>
